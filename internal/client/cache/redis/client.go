@@ -9,10 +9,10 @@ import (
 
 type Client struct {
 	pool   *redis.Pool
-	config config.RedisConfig
+	config *config.RedisConfig
 }
 
-func NewClient(pool *redis.Pool, config config.RedisConfig) *Client {
+func NewClient(pool *redis.Pool, config *config.RedisConfig) *Client {
 	return &Client{
 		pool:   pool,
 		config: config,

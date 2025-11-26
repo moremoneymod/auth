@@ -4,14 +4,17 @@ import (
 	"context"
 	"log"
 
+	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/moremoneymod/auth/internal/api/access_v1"
 	"github.com/moremoneymod/auth/internal/api/auth_v1"
+	redis2 "github.com/moremoneymod/auth/internal/client/cache/redis"
 	"github.com/moremoneymod/auth/internal/client/pg"
 	"github.com/moremoneymod/auth/internal/closer"
 	"github.com/moremoneymod/auth/internal/config"
 	"github.com/moremoneymod/auth/internal/model"
 	access2 "github.com/moremoneymod/auth/internal/repository/access/pg"
+	cacheRepo "github.com/moremoneymod/auth/internal/repository/access/redis"
 	"github.com/moremoneymod/auth/internal/repository/user"
 	"github.com/moremoneymod/auth/internal/service/access"
 	"github.com/moremoneymod/auth/internal/service/auth"
@@ -33,21 +36,28 @@ type UserRepository interface {
 type AccessRepository interface {
 }
 
+type CacheRepository interface {
+	Get(ctx context.Context, key string) (*model.AccessInfoCache, error)
+}
+
 type GRPCConfig interface {
 	Address() string
 }
 
 type ServiceProvider struct {
-	pgConfig   *config.PGConfig
-	grpcConfig *config.GRPCConfig
-	authConfig *config.AuthConfig
+	pgConfig    *config.PGConfig
+	grpcConfig  *config.GRPCConfig
+	authConfig  *config.AuthConfig
+	redisConfig *config.RedisConfig
 
 	pgClient         pg.Client
+	redisClient      *redis2.Client
 	userRepository   UserRepository
 	accessRepository AccessRepository
 
-	authService   AuthService
-	accessService AccessService
+	authService     AuthService
+	accessService   AccessService
+	cacheRepository CacheRepository
 
 	authImpl   *auth_v1.Implementation
 	accessImpl *access_v1.Implementation
@@ -67,6 +77,18 @@ func (s *ServiceProvider) GetPGConfig() *config.PGConfig {
 		s.pgConfig = cfg
 	}
 	return s.pgConfig
+}
+
+func (s *ServiceProvider) GetRedisConfig() *config.RedisConfig {
+	if s.redisConfig == nil {
+		cfg, err := config.NewRedisConfig()
+		if err != nil {
+			log.Fatalf("failed to get redis config: %v", err)
+		}
+
+		s.redisConfig = cfg
+	}
+	return s.redisConfig
 }
 
 func (s *ServiceProvider) GetGRPCConfig() GRPCConfig {
@@ -115,6 +137,22 @@ func (s *ServiceProvider) GetPGClient(ctx context.Context) pg.Client {
 	return s.pgClient
 }
 
+func (s *ServiceProvider) GetRedisClient(ctx context.Context) *redis2.Client {
+	if s.redisClient == nil {
+		client := redis2.NewClient(&redis.Pool{
+			Dial: func() (redis.Conn, error) {
+				return redis.Dial("tcp", s.redisConfig.Address())
+			},
+			MaxIdle:     s.redisConfig.MaxIdle(),
+			IdleTimeout: s.redisConfig.IdleTimeout(),
+		}, s.GetRedisConfig())
+
+		s.redisClient = client
+
+	}
+	return s.redisClient
+}
+
 func (s *ServiceProvider) GetUserRepository(ctx context.Context) UserRepository {
 	if s.userRepository == nil {
 		s.userRepository = user.NewRepository(s.GetPGClient(ctx))
@@ -131,6 +169,13 @@ func (s *ServiceProvider) GetAccessRepository(ctx context.Context) AccessReposit
 	return s.accessRepository
 }
 
+func (s *ServiceProvider) GetCacheRepository(ctx context.Context) CacheRepository {
+	if s.cacheRepository == nil {
+		s.cacheRepository = cacheRepo.NewRepository(s.GetRedisClient(ctx))
+	}
+	return s.cacheRepository
+}
+
 func (s *ServiceProvider) AuthService(ctx context.Context) AuthService {
 	if s.authService == nil {
 		s.authService = auth.NewService(s.GetUserRepository(ctx), s.GetAuthConfig())
@@ -141,7 +186,7 @@ func (s *ServiceProvider) AuthService(ctx context.Context) AuthService {
 
 func (s *ServiceProvider) AccessService(ctx context.Context) AccessService {
 	if s.accessService == nil {
-		s.accessService = access.NewService(s.GetAccessRepository(ctx))
+		s.accessService = access.NewService(s.GetAccessRepository(ctx), s.GetCacheRepository(ctx), s.GetAuthConfig())
 	}
 
 	return s.accessService

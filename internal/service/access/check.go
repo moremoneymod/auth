@@ -28,7 +28,6 @@ func (s *Service) Check(ctx context.Context, endpointAddress string) (bool, erro
 	}
 
 	accessToken := strings.TrimPrefix(authHeader[0], authPrefix)
-
 	claims, err := utils.VerifyToken(accessToken, s.authConfig.AccessTokenSecret())
 	if err != nil {
 		return false, service.ErrInvalidToken

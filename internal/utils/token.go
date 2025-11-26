@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,6 +14,7 @@ var (
 )
 
 func GenerateToken(userInfo *model.User, secretKey []byte, duration time.Duration) (string, error) {
+	fmt.Println(secretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["username"] = userInfo.Username
@@ -27,6 +29,7 @@ func GenerateToken(userInfo *model.User, secretKey []byte, duration time.Duratio
 }
 
 func VerifyToken(tokenString string, secretKey []byte) (*model.UserClaims, error) {
+	fmt.Println(secretKey)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")

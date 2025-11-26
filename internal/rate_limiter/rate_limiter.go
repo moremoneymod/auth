@@ -2,7 +2,6 @@ package rate_limiter
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
@@ -40,7 +39,6 @@ func (l *TokenBucketLimiter) startPeriodReplenishment(ctx context.Context, inter
 func (l *TokenBucketLimiter) Allow() bool {
 	select {
 	case <-l.tokenBucket:
-		fmt.Println(1)
 		return true
 	default:
 		return false

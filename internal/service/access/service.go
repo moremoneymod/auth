@@ -20,8 +20,10 @@ type Service struct {
 	authConfig       config.AuthConfig
 }
 
-func NewService(accessRepository accessRepository) *Service {
+func NewService(accessRepository accessRepository, cacheRepository accessCache, authConfig *config.AuthConfig) *Service {
 	return &Service{
 		accessRepository: accessRepository,
+		cacheRepository:  cacheRepository,
+		authConfig:       *authConfig,
 	}
 }
