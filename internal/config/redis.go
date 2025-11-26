@@ -29,6 +29,16 @@ func NewRedisConfig() (*RedisConfig, error) {
 		return nil, errors.New("redis port not set")
 	}
 
+	connectionTimeoutStr := os.Getenv("REDIS_CONNECTION_TIMEOUT")
+	if connectionTimeoutStr == "" {
+		return nil, errors.New("redis connection timeout not set")
+	}
+
+	connectionTimeout, err := time.ParseDuration(connectionTimeoutStr)
+	if err != nil {
+		return nil, err
+	}
+
 	maxIdleStr := os.Getenv("REDIS_MAX_IDLE")
 	if maxIdleStr == "" {
 		return nil, errors.New("redis max idle not set")
@@ -50,10 +60,11 @@ func NewRedisConfig() (*RedisConfig, error) {
 	}
 
 	return &RedisConfig{
-		host:        host,
-		port:        port,
-		maxIdle:     maxIdle,
-		idleTimeout: idleTimeout,
+		host:              host,
+		port:              port,
+		connectionTimeout: connectionTimeout,
+		maxIdle:           maxIdle,
+		idleTimeout:       idleTimeout,
 	}, nil
 }
 
